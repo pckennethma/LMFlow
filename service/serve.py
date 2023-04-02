@@ -49,9 +49,9 @@ if __name__ == "__main__":
             inputs = [line['text'] for i, line in enumerate(lines)]
 
     # Process the inputs in batches
-    for i in tqdm.tqdm(inputs):
-        response = inference_one(i)
+    for idx, text in enumerate(tqdm.tqdm(inputs)):
+        response = inference_one(text)
 
         # Write the batch responses to an output file
         with jsonlines.open(sys.argv[2], mode='a') as writer:
-            writer.write({'test_output': response, **i})
+            writer.write({'test_output': response, **lines[idx]})
