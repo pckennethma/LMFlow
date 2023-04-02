@@ -33,7 +33,10 @@ def inference_one(prompt):
     outputs = model.inference(inputs, max_new_tokens=250,temperature=0.9, do_sample=False)
     text_out = model.decode(outputs[0], skip_special_tokens=True)
     prompt_length = len(model.decode(inputs[0], skip_special_tokens=True,))
-    text_out = text_out[prompt_length:].strip("\n")
+    try:
+        text_out = text_out[prompt_length:].strip("\n").split("\n\nDefintion:")[0]
+    except:
+        text_out = text_out[prompt_length:].strip("\n")
 
     return text_out
 
