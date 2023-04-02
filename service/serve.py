@@ -28,14 +28,13 @@ model = AutoModel.get_model(model_args, tune_strategy='none', ds_config=ds_confi
 def inference_one(prompt):
     if prompt == "":
         return ""
-    prompt = f"""### Instruction:{prompt}
-
-### Response:"""
+    prompt = f"""Input: User{prompt}\n Assistant:"""
     inputs = model.encode(prompt, return_tensors="pt").to(device=local_rank)
     outputs = model.inference(inputs, max_new_tokens=250,temperature=0.9, do_sample=False)
     text_out = model.decode(outputs[0], skip_special_tokens=True)
     prompt_length = len(model.decode(inputs[0], skip_special_tokens=True,))
     text_out = text_out[prompt_length:].strip("\n")
+
     return text_out
 
 if __name__ == "__main__":
