@@ -37,6 +37,10 @@ def inference_one(prompt):
         text_out = text_out[prompt_length:].strip("\n").split("\n\nDefintion:")[0]
     except:
         text_out = text_out[prompt_length:].strip("\n")
+    try:
+        text_out = text_out.split("User:")[0]
+    except:
+        pass
 
     return text_out
 
