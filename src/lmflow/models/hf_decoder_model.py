@@ -47,6 +47,7 @@ from transformers import (
 from lmflow.datasets.dataset import Dataset
 from lmflow.models.decoder_model import DecoderModel
 from lmflow.models.interfaces.tunable import Tunable
+from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 
 
 class HFDecoderModel(DecoderModel, Tunable):
@@ -179,7 +180,6 @@ class HFDecoderModel(DecoderModel, Tunable):
             self.tune_strategy = tune_strategy
 
         elif tune_strategy == 'none':
-            dschf = HfDeepSpeedConfig(ds_config)
             self.backend_model = AutoModelForCausalLM.from_pretrained(
                 model_args.model_name_or_path,
                 device_map="auto",
@@ -194,8 +194,16 @@ class HFDecoderModel(DecoderModel, Tunable):
                 )
 
             deepspeed.init_distributed()
-            self.ds_engine = deepspeed.initialize(model=self.backend_model, config_params=ds_config)[0]
-            self.ds_engine.module.eval()
+            # self.ds_engine = deepspeed.initialize(model=self.backend_model, config_params=ds_config)[0]
+            if "llama" in model_args.model_name_or_path.lower():
+                self.ds_engine = deepspeed.init_inference(
+                    self.backend_model,
+                    mp_size=2,
+                    dtype=torch.half,
+                    injection_policy={LlamaDecoderLayer: ('self_attn.o_proj', 'mlp.down_proj')}
+                )
+            else:
+                self.ds_engine = deepspeed.init_inference(self.backend_model, mp_size=2, dtype=torch.half)
 
         elif tune_strategy == 'adapter':
             raise NotImplementedError('adapter tune strategy not implemented')
