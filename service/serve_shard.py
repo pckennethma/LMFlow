@@ -44,7 +44,7 @@ def inference_one(prompt):
 
 if __name__ == "__main__":
     input_file = sys.argv[1]
-    output_file = sys.argv[2]
+    output_file_base = sys.argv[2]
     worker_index = int(sys.argv[3])
     num_workers = int(sys.argv[4])
 
@@ -61,6 +61,7 @@ if __name__ == "__main__":
         else:
             inputs = [line['text'] for i, line in enumerate(shard)]
 
+    output_file = f"{output_file_base}_shard_{worker_index}.jsonl"
     for idx, text in enumerate(tqdm.tqdm(inputs)):
         response = inference_one(text)
         with jsonlines.open(output_file, mode='a') as writer:
