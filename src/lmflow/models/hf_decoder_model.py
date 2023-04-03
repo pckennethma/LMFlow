@@ -48,7 +48,6 @@ from transformers import (
 from lmflow.datasets.dataset import Dataset
 from lmflow.models.decoder_model import DecoderModel
 from lmflow.models.interfaces.tunable import Tunable
-from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 
 
 logger = logging.getLogger(__name__)
@@ -184,13 +183,7 @@ class HFDecoderModel(DecoderModel, Tunable):
             self.tune_strategy = tune_strategy
 
         elif tune_strategy == 'none':
-            self.backend_model = AutoModelForCausalLM.from_pretrained(
-                model_args.model_name_or_path,
-                device_map="auto",
-                offload_folder="offload",
-                offload_state_dict=True,
-            )
-            self.tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
+            dschf = HfDeepSpeedConfig(ds_config)
             peft_model_id = model_args.lora_model_path
 
             if model_args.use_ram_optimized_load and peft_model_id is None:
@@ -228,17 +221,8 @@ class HFDecoderModel(DecoderModel, Tunable):
                 )
 
             deepspeed.init_distributed()
-            # self.ds_engine = deepspeed.initialize(model=self.backend_model, config_params=ds_config)[0]
-            # some dirty hack to make it work with Llama
-            if "llama" in model_args.model_name_or_path.lower():
-                self.ds_engine = deepspeed.init_inference(
-                    self.backend_model,
-                    mp_size=2,
-                    dtype=torch.half,
-                    injection_policy={LlamaDecoderLayer: ('self_attn.o_proj', 'mlp.down_proj')}
-                )
-            else:
-                self.ds_engine = deepspeed.init_inference(self.backend_model, mp_size=2, dtype=torch.half)
+            self.ds_engine = deepspeed.initialize(model=self.backend_model, config_params=ds_config)[0]
+            self.ds_engine.module.eval()
 
         elif tune_strategy == 'adapter':
             raise NotImplementedError('adapter tune strategy not implemented')

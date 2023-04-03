@@ -14,7 +14,7 @@ ds_config_path = "../examples/ds_config.json"
 with open (ds_config_path, "r") as f:
     ds_config = json.load(f)
 
-model_name_or_path = "OptimalScale/gpt-neo2.7B-inst-tuning"
+model_name_or_path = 'OptimalScale/gpt-neo2.7B-inst-tuning'
 model_args = ModelArguments(model_name_or_path=model_name_or_path)
 
 local_rank = int(os.getenv("LOCAL_RANK", "0"))
@@ -43,19 +43,25 @@ def inference_one(prompt):
     return text_out
 
 if __name__ == "__main__":
-    # Open the file using jsonlines library
-    with jsonlines.open(sys.argv[1]) as reader:
-        # Read the first ten lines and extract the "text" field from each line
-        lines = list(reader)
-        if "test_input" in lines[0]:
-            inputs = [line['test_input'] for i, line in enumerate(lines)]
-        else:
-            inputs = [line['text'] for i, line in enumerate(lines)]
+    input_file = sys.argv[1]
+    output_file = sys.argv[2]
+    worker_index = int(sys.argv[3])
+    num_workers = int(sys.argv[4])
 
-    # Process the inputs in batches
+    with jsonlines.open(input_file) as reader:
+        lines = list(reader)
+        total_lines = len(lines)
+        shard_size = total_lines // num_workers
+        shard_start = shard_size * worker_index
+        shard_end = total_lines if worker_index == num_workers - 1 else shard_start + shard_size
+        shard = lines[shard_start:shard_end]
+
+        if "test_input" in shard[0]:
+            inputs = [line['test_input'] for i, line in enumerate(shard)]
+        else:
+            inputs = [line['text'] for i, line in enumerate(shard)]
+
     for idx, text in enumerate(tqdm.tqdm(inputs)):
         response = inference_one(text)
-
-        # Write the batch responses to an output file
-        with jsonlines.open(sys.argv[2], mode='a') as writer:
-            writer.write({'test_output': response, **lines[idx]})
+        with jsonlines.open(output_file, mode='a') as writer:
+            writer.write({'test_output': response, **shard[idx]})
