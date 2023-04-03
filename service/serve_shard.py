@@ -32,14 +32,15 @@ def inference_one(prompt):
     return text_out
 
 if __name__ == "__main__":
-    # CUDA_VISIBLE_DEVICES=0 deepspeed serve_shard.py ~/reflection_explain_input_1k.jsonl ~/reflection_explain_output_1k.jsonl $CUDA_VISIBLE_DEVICES 4 --master_port $((60000 + CUDA_VISIBLE_DEVICES))
+    # export CUDA_VISIBLE_DEVICES=1; deepspeed serve_shard.py ~/reflection_explain_input_1k.jsonl ~/reflection_explain_output_1k.jsonl $CUDA_VISIBLE_DEVICES 4 --master_port  $(echo $((60000 + CUDA_VISIBLE_DEVICES)))
     parser = argparse.ArgumentParser(description="Process a shard of a JSONL file with an AI model.")
     parser.add_argument("input_file", type=str, help="Path to the input JSONL file")
     parser.add_argument("output_file_base", type=str, help="Base name of the output JSONL file")
     parser.add_argument("worker_index", type=int, help="Index of the current worker")
     parser.add_argument("num_workers", type=int, help="Total number of workers")
 
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
+
 
     ds_config_path = "../examples/ds_config.json"
     with open (ds_config_path, "r") as f:
