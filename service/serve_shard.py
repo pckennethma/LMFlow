@@ -1,3 +1,4 @@
+import argparse
 from lmflow.datasets.dataset import Dataset
 from lmflow.pipeline.auto_pipeline import AutoPipeline
 from lmflow.models.auto_model import AutoModel
@@ -9,18 +10,6 @@ import io
 import json
 import torch
 import os, jsonlines, tqdm, sys
-
-ds_config_path = "../examples/ds_config.json"
-with open (ds_config_path, "r") as f:
-    ds_config = json.load(f)
-
-model_name_or_path = 'OptimalScale/gpt-neo2.7B-inst-tuning'
-model_args = ModelArguments(model_name_or_path=model_name_or_path)
-
-local_rank = int(os.getenv("LOCAL_RANK", "0"))
-world_size = int(os.getenv("WORLD_SIZE", "1"))
-torch.cuda.set_device(local_rank)
-model = AutoModel.get_model(model_args, tune_strategy='none', ds_config=ds_config)
 
 
 def inference_one(prompt):
@@ -43,17 +32,33 @@ def inference_one(prompt):
     return text_out
 
 if __name__ == "__main__":
-    input_file = sys.argv[1]
-    output_file_base = sys.argv[2]
-    worker_index = int(sys.argv[3])
-    num_workers = int(sys.argv[4])
+    # CUDA_VISIBLE_DEVICES=0 deepspeed serve_shard.py ~/reflection_explain_input_1k.jsonl ~/reflection_explain_output_1k.jsonl $CUDA_VISIBLE_DEVICES 4 --master_port $((60000 + CUDA_VISIBLE_DEVICES))
+    parser = argparse.ArgumentParser(description="Process a shard of a JSONL file with an AI model.")
+    parser.add_argument("input_file", type=str, help="Path to the input JSONL file")
+    parser.add_argument("output_file_base", type=str, help="Base name of the output JSONL file")
+    parser.add_argument("worker_index", type=int, help="Index of the current worker")
+    parser.add_argument("num_workers", type=int, help="Total number of workers")
 
-    with jsonlines.open(input_file) as reader:
+    args = parser.parse_args()
+
+    ds_config_path = "../examples/ds_config.json"
+    with open (ds_config_path, "r") as f:
+        ds_config = json.load(f)
+
+    model_name_or_path = 'OptimalScale/gpt-neo2.7B-inst-tuning'
+    model_args = ModelArguments(model_name_or_path=model_name_or_path)
+
+    local_rank = int(os.getenv("LOCAL_RANK", "0"))
+    world_size = int(os.getenv("WORLD_SIZE", "1"))
+    torch.cuda.set_device(local_rank)
+    model = AutoModel.get_model(model_args, tune_strategy='none', ds_config=ds_config)
+
+    with jsonlines.open(args.input_file) as reader:
         lines = list(reader)
         total_lines = len(lines)
-        shard_size = total_lines // num_workers
-        shard_start = shard_size * worker_index
-        shard_end = total_lines if worker_index == num_workers - 1 else shard_start + shard_size
+        shard_size = total_lines // args.num_workers
+        shard_start = shard_size * args.worker_index
+        shard_end = total_lines if args.worker_index == args.num_workers - 1 else shard_start + shard_size
         shard = lines[shard_start:shard_end]
 
         if "test_input" in shard[0]:
@@ -61,7 +66,7 @@ if __name__ == "__main__":
         else:
             inputs = [line['text'] for i, line in enumerate(shard)]
 
-    output_file = f"{output_file_base}_shard_{worker_index}.jsonl"
+    output_file = f"{args.output_file_base}_shard_{args.worker_index}.jsonl"
     for idx, text in enumerate(tqdm.tqdm(inputs)):
         response = inference_one(text)
         with jsonlines.open(output_file, mode='a') as writer:
