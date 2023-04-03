@@ -2,7 +2,7 @@ import argparse
 import jsonlines
 
 def merge_shards(output_file, num_workers):
-    input_files = [f"{output_file}_shard_{args.worker_index}.jsonl" for i in range(num_workers)]
+    input_files = [f"{output_file}_shard_{i}.jsonl" for i in range(num_workers)]
     with jsonlines.open(output_file, mode='w') as writer:
         for input_file in input_files:
             with jsonlines.open(input_file, mode='r') as reader:
