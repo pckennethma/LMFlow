@@ -41,24 +41,6 @@ if __name__ == "__main__":
 
     args, _ = parser.parse_known_args()
 
-
-    ds_config_path = "../examples/ds_config.json"
-    with open (ds_config_path, "r") as f:
-        ds_config = json.load(f)
-
-    model_name_or_path = 'OptimalScale/gpt-neo2.7B-inst-tuning'
-    # model_name_or_path = "decapoda-research/llama-7b-hf"
-    # lora_path = "../output_models/llama7b-lora-170k"
-    try:
-        model_args = ModelArguments(model_name_or_path=model_name_or_path, lora_model_path=lora_path)
-    except:
-        model_args = ModelArguments(model_name_or_path=model_name_or_path)
-
-    local_rank = int(os.getenv("LOCAL_RANK", "0"))
-    world_size = int(os.getenv("WORLD_SIZE", "1"))
-    torch.cuda.set_device(local_rank)
-    model = AutoModel.get_model(model_args, tune_strategy='none', ds_config=ds_config)
-
     with jsonlines.open(args.input_file) as reader:
         lines = list(reader)
         total_lines = len(lines)
@@ -83,6 +65,26 @@ if __name__ == "__main__":
                 inputs = [line['text'] for i, line in enumerate(shard)]
     if len(inputs) == 0:
         sys.exit(0)
+
+
+    ds_config_path = "../examples/ds_config.json"
+    with open (ds_config_path, "r") as f:
+        ds_config = json.load(f)
+
+    model_name_or_path = 'OptimalScale/gpt-neo2.7B-inst-tuning'
+    # model_name_or_path = "decapoda-research/llama-7b-hf"
+    # lora_path = "../output_models/llama7b-lora-170k"
+    try:
+        model_args = ModelArguments(model_name_or_path=model_name_or_path, lora_model_path=lora_path)
+    except:
+        model_args = ModelArguments(model_name_or_path=model_name_or_path)
+
+    local_rank = int(os.getenv("LOCAL_RANK", "0"))
+    world_size = int(os.getenv("WORLD_SIZE", "1"))
+    torch.cuda.set_device(local_rank)
+    model = AutoModel.get_model(model_args, tune_strategy='none', ds_config=ds_config)
+
+    
     output_file = f"{args.output_file_base}_shard_{args.worker_index}.jsonl"
     for idx, text in enumerate(tqdm.tqdm(inputs)):
         response = inference_one(text)
