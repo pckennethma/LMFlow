@@ -47,9 +47,12 @@ if __name__ == "__main__":
         ds_config = json.load(f)
 
     model_name_or_path = 'OptimalScale/gpt-neo2.7B-inst-tuning'
-    model_name_or_path = "decapoda-research/llama-7b-hf"
-    lora_path = "../output_models/llama7b-lora-170k"
-    model_args = ModelArguments(model_name_or_path=model_name_or_path, lora_model_path=lora_path)
+    # model_name_or_path = "decapoda-research/llama-7b-hf"
+    # lora_path = "../output_models/llama7b-lora-170k"
+    try:
+        model_args = ModelArguments(model_name_or_path=model_name_or_path, lora_model_path=lora_path)
+    except:
+        model_args = ModelArguments(model_name_or_path=model_name_or_path)
 
     local_rank = int(os.getenv("LOCAL_RANK", "0"))
     world_size = int(os.getenv("WORLD_SIZE", "1"))
