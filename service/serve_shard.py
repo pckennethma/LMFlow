@@ -67,10 +67,20 @@ if __name__ == "__main__":
         shard_end = total_lines if args.worker_index == args.num_workers - 1 else shard_start + shard_size
         shard = lines[shard_start:shard_end]
 
-        if "test_input" in shard[0]:
-            inputs = [line['test_input'] for i, line in enumerate(shard)]
+        if os.path.exists(f"{args.output_file_base}_shard_{args.worker_index}.jsonl"):
+            with jsonlines.open(f"{args.output_file_base}_shard_{args.worker_index}.jsonl") as reader:
+                existing_lines = list(reader)
+                if "test_input" in shard[0]:
+                    existing_inputs = set([line['test_input'] for i, line in enumerate(existing_lines)])
+                    inputs = [line['test_input'] for i, line in enumerate(shard) if line['test_input'] not in existing_inputs]
+                else:
+                    existing_inputs = set([line['text'] for i, line in enumerate(existing_lines)])
+                    inputs = [line['text'] for i, line in enumerate(shard) if line['text'] not in existing_inputs]
         else:
-            inputs = [line['text'] for i, line in enumerate(shard)]
+            if "test_input" in shard[0]:
+                inputs = [line['test_input'] for i, line in enumerate(shard)]
+            else:
+                inputs = [line['text'] for i, line in enumerate(shard)]
 
     output_file = f"{args.output_file_base}_shard_{args.worker_index}.jsonl"
     for idx, text in enumerate(tqdm.tqdm(inputs)):
