@@ -81,7 +81,8 @@ if __name__ == "__main__":
                 inputs = [line['test_input'] for i, line in enumerate(shard)]
             else:
                 inputs = [line['text'] for i, line in enumerate(shard)]
-
+    if len(inputs) == 0:
+        sys.exit(0)
     output_file = f"{args.output_file_base}_shard_{args.worker_index}.jsonl"
     for idx, text in enumerate(tqdm.tqdm(inputs)):
         response = inference_one(text)
