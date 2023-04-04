@@ -9,12 +9,14 @@ import io
 import json
 import torch
 import os, jsonlines, tqdm, sys
+import argparse
 
 ds_config_path = "../examples/ds_config.json"
 with open (ds_config_path, "r") as f:
     ds_config = json.load(f)
 
-model_name_or_path = "OptimalScale/gpt-neo2.7B-inst-tuning"
+# model_name_or_path = "OptimalScale/gpt-neo2.7B-inst-tuning"
+model_name_or_path = 'OptimalScale/gpt-neo2.7B-inst-tuning'
 model_args = ModelArguments(model_name_or_path=model_name_or_path)
 
 local_rank = int(os.getenv("LOCAL_RANK", "0"))
@@ -44,7 +46,12 @@ def inference_one(prompt):
 
 if __name__ == "__main__":
     # Open the file using jsonlines library
-    with jsonlines.open(sys.argv[1]) as reader:
+    parser = argparse.ArgumentParser(description="Process a shard of a JSONL file with an AI model.")
+    parser.add_argument("input_file", type=str, help="Path to the input JSONL file")
+    parser.add_argument("output_file_base", type=str, help="Base name of the output JSONL file")
+    args, _ = parser.parse_known_args()
+    
+    with jsonlines.open(args.input_file) as reader:
         # Read the first ten lines and extract the "text" field from each line
         lines = list(reader)
         if "test_input" in lines[0]:
@@ -57,5 +64,5 @@ if __name__ == "__main__":
         response = inference_one(text)
 
         # Write the batch responses to an output file
-        with jsonlines.open(sys.argv[2], mode='a') as writer:
+        with jsonlines.open(args.output_file_base, mode='a') as writer:
             writer.write({'test_output': response, **lines[idx]})
