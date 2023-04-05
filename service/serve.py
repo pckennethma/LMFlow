@@ -15,7 +15,6 @@ import torch
 import os, jsonlines, tqdm, sys
 import argparse
 
-from my_dataset import Dataset
 
 ds_config_path = "../examples/ds_config.json"
 with open (ds_config_path, "r") as f:
