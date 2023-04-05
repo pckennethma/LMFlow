@@ -232,10 +232,7 @@ class Finetuner(BaseTuner):
                 checkpoint = last_checkpoint
             train_result = trainer.train(resume_from_checkpoint=checkpoint)
 
-            if not model_args.use_lora:
-                trainer.save_model()  # Saves the tokenizer too for easy upload
-            else:
-                model.get_backend_model().save_pretrained(finetuner_args.output_dir)
+	trainer.save_model(finetuner_args.output_dir)
 
             metrics = train_result.metrics
 
