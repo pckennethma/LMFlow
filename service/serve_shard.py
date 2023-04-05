@@ -138,12 +138,20 @@ if __name__ == "__main__":
     print("start infer all cases")
     batch_size = args.batch_size
     total_ans = []
-    
-    for cur in tqdm.tqdm(batch(inputs,batch_size),total=len(inputs)//batch_size):
-        total_ans.extend(inference_many(cur))
 
-    
-    output_file = f"{args.output_file_base}_shard_{args.worker_index}.jsonl"
-    for idx, text in enumerate(tqdm.tqdm(inputs)):
-        with jsonlines.open(output_file, mode='a') as writer:
-            writer.write({'test_output': total_ans[idx], **shard[idx]})
+
+    if batch_size == 1:
+        output_file = f"{args.output_file_base}_shard_{args.worker_index}.jsonl"
+        for idx, text in enumerate(tqdm.tqdm(inputs)):
+            response = inference_one(text)
+            with jsonlines.open(output_file, mode='a') as writer:
+                writer.write({'test_output': response, **shard[idx]})
+    else:
+        for cur in tqdm.tqdm(batch(inputs,batch_size),total=len(inputs)//batch_size):
+            total_ans.extend(inference_many(cur))
+
+        
+        output_file = f"{args.output_file_base}_shard_{args.worker_index}.jsonl"
+        for idx, text in enumerate(tqdm.tqdm(inputs)):
+            with jsonlines.open(output_file, mode='a') as writer:
+                writer.write({'test_output': total_ans[idx], **shard[idx]})
