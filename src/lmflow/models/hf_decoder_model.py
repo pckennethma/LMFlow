@@ -138,6 +138,7 @@ class HFDecoderModel(DecoderModel, Tunable):
                 )
 
             if model_args.model_name_or_path:
+                logger.info(f"loading model from {model_args.model_name_or_path}...")
                 torch_dtype = (
                     model_args.torch_dtype
                     if model_args.torch_dtype in ["auto", None]
