@@ -170,6 +170,7 @@ class HFDecoderModel(DecoderModel, Tunable):
                     model = get_peft_model(model, peft_config)
                     model.print_trainable_parameters()
                 else:
+                    logger.info(f"Loading LORA model from {model_args.lora_model_path}...")
                     model = PeftModel.from_pretrained(model, model_args.lora_model_path)
 
             # We resize the embeddings only when necessary to avoid index errors.
