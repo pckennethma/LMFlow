@@ -138,7 +138,7 @@ class HFDecoderModel(DecoderModel, Tunable):
                 )
 
             if model_args.model_name_or_path:
-                logger.info(f"loading model from {model_args.model_name_or_path}...")
+                print(f"loading model from {model_args.model_name_or_path}...")
                 torch_dtype = (
                     model_args.torch_dtype
                     if model_args.torch_dtype in ["auto", None]
@@ -169,10 +169,11 @@ class HFDecoderModel(DecoderModel, Tunable):
                         lora_dropout=model_args.lora_dropout
                     )
                     model = get_peft_model(model, peft_config)
-                    model.print_trainable_parameters()
+                    print(f"Training from scratch with LORA")
                 else:
-                    logger.info(f"Loading LORA model from {model_args.lora_model_path}...")
+                    print(f"Loading LORA model from {model_args.lora_model_path}...")
                     model = PeftModel.from_pretrained(model, model_args.lora_model_path)
+            model.print_trainable_parameters()
 
             # We resize the embeddings only when necessary to avoid index errors.
             # If you are creating a model from scratch on a small vocab and want a
