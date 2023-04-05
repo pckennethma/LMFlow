@@ -158,16 +158,19 @@ class HFDecoderModel(DecoderModel, Tunable):
                 logger.info(f"Training new model from scratch - Total size={n_params/2**20:.2f}M params")
 
             if model_args.use_lora:
-                peft_config = LoraConfig(
-                    task_type=TaskType.CAUSAL_LM,
-                    inference_mode=False,
-                    r=model_args.lora_r,
-                    # target_modules=["q_proj","v_proj"],
-                    lora_alpha=model_args.lora_alpha,
-                    lora_dropout=model_args.lora_dropout
-                )
-                model = get_peft_model(model, peft_config)
-                model.print_trainable_parameters()
+                if model_args.lora_model_path is None:
+                    peft_config = LoraConfig(
+                        task_type=TaskType.CAUSAL_LM,
+                        inference_mode=False,
+                        r=model_args.lora_r,
+                        # target_modules=["q_proj","v_proj"],
+                        lora_alpha=model_args.lora_alpha,
+                        lora_dropout=model_args.lora_dropout
+                    )
+                    model = get_peft_model(model, peft_config)
+                    model.print_trainable_parameters()
+                else:
+                    model = PeftModel.from_pretrained(model, model_args.lora_model_path)
 
             # We resize the embeddings only when necessary to avoid index errors.
             # If you are creating a model from scratch on a small vocab and want a
