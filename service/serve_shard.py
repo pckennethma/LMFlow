@@ -32,8 +32,8 @@ def inference_one(prompt):
     return text_out
 
 def inference_many(prompt):
-    if prompt == [""]*batch_size:
-        return [""]*batch_size
+    if prompt == "":
+        return ""
     
     prompt_tmp = []
     for i in prompt:
