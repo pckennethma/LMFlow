@@ -7,6 +7,8 @@ import logging
 import os
 import sys
 
+import torch
+
 import datasets
 import transformers
 
@@ -17,15 +19,23 @@ from transformers import (
     set_seed,
 )
 from transformers.utils import send_example_telemetry
-
+from transformers.trainer_utils import get_last_checkpoint
 from lmflow.datasets.dataset import Dataset
 from lmflow.pipeline.base_tuner import BaseTuner
+from lmflow.models.hf_decoder_model import HFDecoderModel
 
+from peft import (  # noqa: E402
+    LoraConfig,
+    get_peft_model,
+    get_peft_model_state_dict,
+    prepare_model_for_int8_training,
+    set_peft_model_state_dict,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class Finetuner(BaseTuner):
+class BloomFinetuner(BaseTuner):
     """
     Initializes the `Finetuner` class with given arguments.
 
@@ -82,24 +92,6 @@ class Finetuner(BaseTuner):
         )
         logger.info(f"Training/evaluation parameters {finetuner_args}")
 
-        # Detecting last checkpoint.
-        last_checkpoint = None
-        if os.path.isdir(finetuner_args.output_dir) and finetuner_args.do_train and not finetuner_args.overwrite_output_dir:
-            last_checkpoint = get_last_checkpoint(finetuner_args.output_dir)
-            if last_checkpoint is None and len(os.listdir(finetuner_args.output_dir)) > 0:
-                raise ValueError(
-                    f"Output directory ({finetuner_args.output_dir}) already"
-                    " exists and is not empty. "
-                    "Use --overwrite_output_dir to overcome."
-                )
-            elif last_checkpoint is not None and finetuner_args.resume_from_checkpoint is None:
-                logger.info(
-                    f"Checkpoint detected, resuming training at"
-                    f" {last_checkpoint}. To avoid this behavior, change"
-                    " the `--output_dir` or add `--overwrite_output_dir` to"
-                    " train from scratch."
-                )
-        self.last_checkpoint = last_checkpoint
 
         # Set seed before initializing model.
         set_seed(finetuner_args.seed)
@@ -183,7 +175,7 @@ class Finetuner(BaseTuner):
         return lm_datasets
 
 
-    def tune(self, model, lm_dataset):
+    def tune(self, model: HFDecoderModel, lm_dataset: Dataset):
         """
         Perform tuning for a model
 
@@ -199,6 +191,26 @@ class Finetuner(BaseTuner):
         model_args = self.model_args
         data_args = self.data_args
         finetuner_args = self.finetuner_args
+
+        if finetuner_args.resume_from_checkpoint:
+            # Check the available weights and load them
+            checkpoint_name = os.path.join(
+                resume_from_checkpoint, "pytorch_model.bin"
+            )  # Full checkpoint
+            if not os.path.exists(checkpoint_name):
+                checkpoint_name = os.path.join(
+                    resume_from_checkpoint, "adapter_model.bin"
+                )  # only LoRA model - LoRA config above has to fit
+                resume_from_checkpoint = (
+                    False  # So the trainer won't try loading its state
+                )
+            # The two files above have a different name depending on how they were saved, but are actually the same.
+            if os.path.exists(checkpoint_name):
+                logger.info(f"Restarting from {checkpoint_name}")
+                adapters_weights = torch.load(checkpoint_name)
+                self.last_checkpoint = set_peft_model_state_dict(model.get_backend_model(), adapters_weights)
+            else:
+                logger.info(f"Checkpoint {checkpoint_name} not found")
 
         train_dataset = lm_dataset.get_backend_dataset()
 
@@ -229,12 +241,17 @@ class Finetuner(BaseTuner):
                 checkpoint = training_args.resume_from_checkpoint
             elif last_checkpoint is not None:
                 checkpoint = last_checkpoint
-            train_result = trainer.train(resume_from_checkpoint=checkpoint)
+            
+            old_state_dict = model.state_dict
+            model.state_dict = (
+                lambda self, *_, **__: get_peft_model_state_dict(
+                    self, old_state_dict()
+                )
+            ).__get__(model, type(model))
 
-            if not model_args.use_lora:
-                trainer.save_model()  # Saves the tokenizer too for easy upload
-            else:
-                model.get_backend_model().save_pretrained(finetuner_args.output_dir)
+            train_result = trainer.train(resume_from_checkpoint=checkpoint, save_total_limit=3)
+
+            model.get_backend_model().save_pretrained(finetuner_args.output_dir)
 
             metrics = train_result.metrics
 
