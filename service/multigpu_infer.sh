@@ -1,7 +1,7 @@
 #!/bin/bash
 
-if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <input_file> <output_file> <num_shards>"
+if [ "$#" -ne 4 ]; then
+    echo "Usage: $0 <input_file> <output_file> <num_shards> <num_batch>"
     exit 1
 fi
 
