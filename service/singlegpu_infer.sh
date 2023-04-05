@@ -1,4 +1,3 @@
 #!/bin/bash
 
-
-deepspeed serve.py rewritten_test_153.jsonl rewritten_test_153_out.jsonl 10
+NVIDIA_VISIBLE_DEVICES=1 deepspeed --num_gpus 1 serve.py full_benchmark.jsonl full_benchmark_2.7b_out.jsonl.jsonl 10

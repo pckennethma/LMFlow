@@ -31,6 +31,8 @@ def inference_one(prompt):
 
     return text_out
 
+
+
 def inference_many(prompt):
     if prompt == "":
         return ""
@@ -41,34 +43,50 @@ def inference_many(prompt):
         
     prompt = prompt_tmp
     model.tokenizer.pad_token = model.tokenizer.eos_token_id
+    
+    pad_token = int(model.tokenizer.eos_token_id)
     model.tokenizer.padding_side='left'
     prompt_all = None
+        
+    with torch.no_grad():
+        tmp_all_pro = [model.encode(i, return_tensors="pt").to(device=local_rank) for i in prompt]
+        
+        max_length = max([tok.shape[1] for tok in tmp_all_pro])
+        prompt_all = None
 
+        for i in tmp_all_pro:
+
+            if i.shape[1] != max_length:
+                diff = max_length - i.shape[1]
+
+                padding = torch.ones(1,diff,dtype=torch.long).cuda()*pad_token
+
+                tmp_tmp = torch.cat((padding,i),1)
+            else:
+                tmp_tmp = i
+            if prompt_all == None:
+                prompt_all = tmp_tmp
+            else:
+                prompt_all = torch.cat((prompt_all,tmp_tmp))
     
-    #### start padding
-    for i in prompt:
-        tmp_pro = model.encode(i, return_tensors="pt",padding='max_length',max_length=250).to(device=local_rank)
-
-        if prompt_all == None:
-            prompt_all = tmp_pro
-        else:
-            prompt_all = torch.cat((prompt_all,tmp_pro))
             
     outputs = model.inference(prompt_all, max_new_tokens=250,temperature=0.9, do_sample=False)
-    text_out_final = []
-    for i in range(len(outputs)):
-        text_out = model.decode(outputs[i], skip_special_tokens=True)
-        
-        prompt_length = len(model.decode(prompt_all[i], skip_special_tokens=True,))
-        try:
-            text_out = text_out[prompt_length:].strip("\n").split("\n\nDefintion:")[0]
-        except:
-            text_out = text_out[prompt_length:].strip("\n")
-        try:
-            text_out = text_out.split("User:")[0]
-        except:
-            pass
-        text_out_final.append(text_out)
+    
+    with torch.no_grad():
+        text_out_final = []
+        for i in range(len(outputs)):
+            text_out = model.decode(outputs[i], skip_special_tokens=True)
+
+            prompt_length = len(model.decode(prompt_all[i], skip_special_tokens=True,))
+            try:
+                text_out = text_out[prompt_length:].strip("\n").split("\n\nDefintion:")[0]
+            except:
+                text_out = text_out[prompt_length:].strip("\n")
+            try:
+                text_out = text_out.split("User:")[0]
+            except:
+                pass
+            text_out_final.append(text_out)
     
     return text_out_final
 
@@ -116,8 +134,13 @@ if __name__ == "__main__":
         ds_config = json.load(f)
 
     model_name_or_path = 'OptimalScale/gpt-neo2.7B-inst-tuning'
-    model_name_or_path = "decapoda-research/llama-13b-hf"
-    lora_path = "../output_models/llama13b-lora-170k"
+#     model_name_or_path = "decapoda-research/llama-13b-hf"
+#     lora_path = "../output_models/llama13b-lora-170k"
+    
+    
+#     model_name_or_path = "decapoda-research/llama-7b-hf"
+#     lora_path = "../output_models/llama7b-lora-170k"
+    
     try:
         model_args = ModelArguments(model_name_or_path=model_name_or_path, lora_model_path=lora_path)
     except:
@@ -147,6 +170,7 @@ if __name__ == "__main__":
             with jsonlines.open(output_file, mode='a') as writer:
                 writer.write({'test_output': response, **shard[idx]})
     else:
+        print("start multi bs infer all cases")
         for cur in tqdm.tqdm(batch(inputs,batch_size),total=len(inputs)//batch_size):
             total_ans.extend(inference_many(cur))
 
@@ -155,3 +179,6 @@ if __name__ == "__main__":
         for idx, text in enumerate(tqdm.tqdm(inputs)):
             with jsonlines.open(output_file, mode='a') as writer:
                 writer.write({'test_output': total_ans[idx], **shard[idx]})
+                
+                
+                
