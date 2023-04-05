@@ -31,6 +31,47 @@ def inference_one(prompt):
 
     return text_out
 
+def inference_many(prompt):
+    if prompt == "":
+        return ""
+    
+    prompt_tmp = []
+    for i in prompt:
+        prompt_tmp.append(f"""Input: User{i}\n Assistant:""")
+        
+    prompt = prompt_tmp
+    model.tokenizer.pad_token = model.tokenizer.eos_token_id
+    model.tokenizer.padding_side='left'
+    prompt_all = None
+
+    
+    #### start padding
+    for i in prompt:
+        tmp_pro = model.encode(i, return_tensors="pt",padding='max_length',max_length=250).to(device=local_rank)
+
+        if prompt_all == None:
+            prompt_all = tmp_pro
+        else:
+            prompt_all = torch.cat((prompt_all,tmp_pro))
+            
+    outputs = model.inference(prompt_all, max_new_tokens=250,temperature=0.9, do_sample=False)
+    text_out_final = []
+    for i in range(len(outputs)):
+        text_out = model.decode(outputs[i], skip_special_tokens=True)
+        
+        prompt_length = len(model.decode(prompt_all[i], skip_special_tokens=True,))
+        try:
+            text_out = text_out[prompt_length:].strip("\n").split("\n\nDefintion:")[0]
+        except:
+            text_out = text_out[prompt_length:].strip("\n")
+        try:
+            text_out = text_out.split("User:")[0]
+        except:
+            pass
+        text_out_final.append(text_out)
+    
+    return text_out_final
+
 if __name__ == "__main__":
     # export CUDA_VISIBLE_DEVICES=3; deepspeed  --master_port  $(echo $((29500 + CUDA_VISIBLE_DEVICES))) serve_shard.py ~/reflection_explain_input_1k.jsonl ~/reflection_explain_output_1k.jsonl $CUDA_VISIBLE_DEVICES 4
     parser = argparse.ArgumentParser(description="Process a shard of a JSONL file with an AI model.")
@@ -38,8 +79,11 @@ if __name__ == "__main__":
     parser.add_argument("output_file_base", type=str, help="Base name of the output JSONL file")
     parser.add_argument("worker_index", type=int, help="Index of the current worker")
     parser.add_argument("num_workers", type=int, help="Total number of workers")
+    parser.add_argument("batch_size", type=int, help="batch size for infering")
 
     args, _ = parser.parse_known_args()
+    
+    batch_size = args.batch_size
 
     with jsonlines.open(args.input_file) as reader:
         lines = list(reader)
@@ -83,10 +127,23 @@ if __name__ == "__main__":
     world_size = int(os.getenv("WORLD_SIZE", "1"))
     torch.cuda.set_device(local_rank)
     model = AutoModel.get_model(model_args, tune_strategy='none', ds_config=ds_config)
+    
+    
+    def batch(iterable, n=1):
+        l = len(iterable)
+        for ndx in range(0, l, n):
+            yield iterable[ndx:min(ndx + n, l)]
+
+    
+    print("start infer all cases")
+    batch_size = args.batch_size
+    total_ans = []
+    
+    for cur in tqdm.tqdm(batch(inputs,batch_size),total=len(inputs)//batch_size):
+        total_ans.extend(inference_many(cur))
 
     
     output_file = f"{args.output_file_base}_shard_{args.worker_index}.jsonl"
     for idx, text in enumerate(tqdm.tqdm(inputs)):
-        response = inference_one(text)
         with jsonlines.open(output_file, mode='a') as writer:
-            writer.write({'test_output': response, **shard[idx]})
+            writer.write({'test_output': total_ans[idx], **shard[idx]})
