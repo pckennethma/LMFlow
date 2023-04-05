@@ -41,14 +41,39 @@ if __name__ == "__main__":
 
     args, _ = parser.parse_known_args()
 
+    with jsonlines.open(args.input_file) as reader:
+        lines = list(reader)
+        total_lines = len(lines)
+        shard_size = total_lines // args.num_workers
+        shard_start = shard_size * args.worker_index
+        shard_end = total_lines if args.worker_index == args.num_workers - 1 else shard_start + shard_size
+        shard = lines[shard_start:shard_end]
+
+        if os.path.exists(f"{args.output_file_base}_shard_{args.worker_index}.jsonl"):
+            with jsonlines.open(f"{args.output_file_base}_shard_{args.worker_index}.jsonl") as reader:
+                existing_lines = list(reader)
+                if "test_input" in shard[0]:
+                    existing_inputs = set([line['test_input'] for i, line in enumerate(existing_lines)])
+                    inputs = [line['test_input'] for i, line in enumerate(shard) if line['test_input'] not in existing_inputs]
+                else:
+                    existing_inputs = set([line['text'] for i, line in enumerate(existing_lines)])
+                    inputs = [line['text'] for i, line in enumerate(shard) if line['text'] not in existing_inputs]
+        else:
+            if "test_input" in shard[0]:
+                inputs = [line['test_input'] for i, line in enumerate(shard)]
+            else:
+                inputs = [line['text'] for i, line in enumerate(shard)]
+    if len(inputs) == 0:
+        sys.exit(0)
+
 
     ds_config_path = "../examples/ds_config.json"
     with open (ds_config_path, "r") as f:
         ds_config = json.load(f)
 
     model_name_or_path = 'OptimalScale/gpt-neo2.7B-inst-tuning'
-    # model_name_or_path = "decapoda-research/llama-7b-hf"
-    # lora_path = "../output_models/llama7b-lora-170k"
+    model_name_or_path = "decapoda-research/llama-13b-hf"
+    lora_path = "../output_models/llama13b-lora-170k"
     try:
         model_args = ModelArguments(model_name_or_path=model_name_or_path, lora_model_path=lora_path)
     except:
@@ -59,19 +84,7 @@ if __name__ == "__main__":
     torch.cuda.set_device(local_rank)
     model = AutoModel.get_model(model_args, tune_strategy='none', ds_config=ds_config)
 
-    with jsonlines.open(args.input_file) as reader:
-        lines = list(reader)
-        total_lines = len(lines)
-        shard_size = total_lines // args.num_workers
-        shard_start = shard_size * args.worker_index
-        shard_end = total_lines if args.worker_index == args.num_workers - 1 else shard_start + shard_size
-        shard = lines[shard_start:shard_end]
-
-        if "test_input" in shard[0]:
-            inputs = [line['test_input'] for i, line in enumerate(shard)]
-        else:
-            inputs = [line['text'] for i, line in enumerate(shard)]
-
+    
     output_file = f"{args.output_file_base}_shard_{args.worker_index}.jsonl"
     for idx, text in enumerate(tqdm.tqdm(inputs)):
         response = inference_one(text)

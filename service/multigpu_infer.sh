@@ -19,4 +19,4 @@ done
 wait
 
 # Run the last command
-merge_shards.py $output_file $num_shards
+python merge_shards.py $output_file $num_shards
