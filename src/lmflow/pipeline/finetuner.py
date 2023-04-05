@@ -232,7 +232,7 @@ class Finetuner(BaseTuner):
                 checkpoint = last_checkpoint
             train_result = trainer.train(resume_from_checkpoint=checkpoint)
 
-	    trainer.save_model(finetuner_args.output_dir)
+            trainer.save_model(finetuner_args.output_dir)
 
             metrics = train_result.metrics
 
