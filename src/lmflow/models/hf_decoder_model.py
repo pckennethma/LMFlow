@@ -189,7 +189,6 @@ class HFDecoderModel(DecoderModel, Tunable):
             self.tune_strategy = tune_strategy
 
         elif tune_strategy == 'none':
-            dschf = HfDeepSpeedConfig(ds_config)
             peft_model_id = model_args.lora_model_path
 
             if model_args.use_ram_optimized_load and peft_model_id is None:
