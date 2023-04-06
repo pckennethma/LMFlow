@@ -58,6 +58,10 @@ def inference_one(prompt):
 
 
 def inference_many(prompt):
+    model.tokenizer.pad_token = model.tokenizer.eos_token_id
+    model.tokenizer.padding_side='left'
+    
+    
     if prompt == "":
         return ""
     
@@ -66,19 +70,12 @@ def inference_many(prompt):
         prompt_tmp.append(f"""Input: User{i}\n Assistant:""")
         
     prompt = prompt_tmp
-    model.tokenizer.pad_token = model.tokenizer.eos_token_id
-    model.tokenizer.padding_side='left'
-    prompt_all = None
-
     
-    #### start padding
-    for i in prompt:
-        tmp_pro = model.encode(i, return_tensors="pt",padding='max_length',max_length=250).to(device=local_rank)
-
-        if prompt_all == None:
-            prompt_all = tmp_pro
-        else:
-            prompt_all = torch.cat((prompt_all,tmp_pro))
+    
+    prompt_all = model.tokenizer.batch_encode_plus(tuple(prompt), pad_to_max_length=True)
+    
+    prompt_all = torch.tensor(prompt_all['input_ids']).cuda()
+    
             
     outputs = model.inference(prompt_all, max_new_tokens=250,temperature=0.9, do_sample=False)
     text_out_final = []
@@ -95,6 +92,7 @@ def inference_many(prompt):
         except:
             pass
         text_out_final.append(text_out)
+        
     
     return text_out_final
 
