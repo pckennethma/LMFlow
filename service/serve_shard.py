@@ -34,6 +34,10 @@ def inference_one(prompt):
 
 
 def inference_many(prompt):
+    model.tokenizer.pad_token = model.tokenizer.eos_token_id
+    model.tokenizer.padding_side='left'
+    
+    
     if prompt == "":
         return ""
     
@@ -42,51 +46,29 @@ def inference_many(prompt):
         prompt_tmp.append(f"""Input: User{i}\n Assistant:""")
         
     prompt = prompt_tmp
-    model.tokenizer.pad_token = model.tokenizer.eos_token_id
     
-    pad_token = int(model.tokenizer.eos_token_id)
-    model.tokenizer.padding_side='left'
-    prompt_all = None
-        
-    with torch.no_grad():
-        tmp_all_pro = [model.encode(i, return_tensors="pt").to(device=local_rank) for i in prompt]
-        
-        max_length = max([tok.shape[1] for tok in tmp_all_pro])
-        prompt_all = None
-
-        for i in tmp_all_pro:
-
-            if i.shape[1] != max_length:
-                diff = max_length - i.shape[1]
-
-                padding = torch.ones(1,diff,dtype=torch.long).cuda()*pad_token
-
-                tmp_tmp = torch.cat((padding,i),1)
-            else:
-                tmp_tmp = i
-            if prompt_all == None:
-                prompt_all = tmp_tmp
-            else:
-                prompt_all = torch.cat((prompt_all,tmp_tmp))
+    
+    prompt_all = model.tokenizer.batch_encode_plus(tuple(prompt), pad_to_max_length=True)
+    
+    prompt_all = torch.tensor(prompt_all['input_ids']).cuda()
     
             
     outputs = model.inference(prompt_all, max_new_tokens=250,temperature=0.9, do_sample=False)
-    
-    with torch.no_grad():
-        text_out_final = []
-        for i in range(len(outputs)):
-            text_out = model.decode(outputs[i], skip_special_tokens=True)
-
-            prompt_length = len(model.decode(prompt_all[i], skip_special_tokens=True,))
-            try:
-                text_out = text_out[prompt_length:].strip("\n").split("\n\nDefintion:")[0]
-            except:
-                text_out = text_out[prompt_length:].strip("\n")
-            try:
-                text_out = text_out.split("User:")[0]
-            except:
-                pass
-            text_out_final.append(text_out)
+    text_out_final = []
+    for i in range(len(outputs)):
+        text_out = model.decode(outputs[i], skip_special_tokens=True)
+        
+        prompt_length = len(model.decode(prompt_all[i], skip_special_tokens=True,))
+        try:
+            text_out = text_out[prompt_length:].strip("\n").split("\n\nDefintion:")[0]
+        except:
+            text_out = text_out[prompt_length:].strip("\n")
+        try:
+            text_out = text_out.split("User:")[0]
+        except:
+            pass
+        text_out_final.append(text_out)
+        
     
     return text_out_final
 
