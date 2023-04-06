@@ -48,26 +48,28 @@ def inference_many(prompt):
     prompt = prompt_tmp
     
     
-    prompt_all = model.tokenizer.batch_encode_plus(tuple(prompt), pad_to_max_length=True)
+    with torch.no_grad():
     
-    prompt_all = torch.tensor(prompt_all['input_ids']).cuda()
+        prompt_all = model.tokenizer.batch_encode_plus(tuple(prompt), pad_to_max_length=True)
+
+        prompt_all = torch.tensor(prompt_all['input_ids']).cuda()
     
             
-    outputs = model.inference(prompt_all, max_new_tokens=250,temperature=0.9, do_sample=False)
-    text_out_final = []
-    for i in range(len(outputs)):
-        text_out = model.decode(outputs[i], skip_special_tokens=True)
-        
-        prompt_length = len(model.decode(prompt_all[i], skip_special_tokens=True,))
-        try:
-            text_out = text_out[prompt_length:].strip("\n").split("\n\nDefintion:")[0]
-        except:
-            text_out = text_out[prompt_length:].strip("\n")
-        try:
-            text_out = text_out.split("User:")[0]
-        except:
-            pass
-        text_out_final.append(text_out)
+        outputs = model.inference(prompt_all, max_new_tokens=250,temperature=0.9, do_sample=False)
+        text_out_final = []
+        for i in range(len(outputs)):
+            text_out = model.decode(outputs[i], skip_special_tokens=True)
+
+            prompt_length = len(model.decode(prompt_all[i], skip_special_tokens=True,))
+            try:
+                text_out = text_out[prompt_length:].strip("\n").split("\n\nDefintion:")[0]
+            except:
+                text_out = text_out[prompt_length:].strip("\n")
+            try:
+                text_out = text_out.split("User:")[0]
+            except:
+                pass
+            text_out_final.append(text_out)
         
     
     return text_out_final

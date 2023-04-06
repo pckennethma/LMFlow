@@ -21,3 +21,5 @@ wait
 
 # Run the last command
 python merge_shards.py $output_file $num_shards
+
+
