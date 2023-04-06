@@ -35,7 +35,7 @@ from peft import (  # noqa: E402
 logger = logging.getLogger(__name__)
 
 
-class BloomFinetuner(BaseTuner):
+class BloomLoRAFinetuner(BaseTuner):
     """
     Initializes the `Finetuner` class with given arguments.
 
@@ -192,32 +192,19 @@ class BloomFinetuner(BaseTuner):
         data_args = self.data_args
         finetuner_args = self.finetuner_args
 
-        if finetuner_args.resume_from_checkpoint:
-            # Check the available weights and load them
-            checkpoint_name = os.path.join(
-                resume_from_checkpoint, "pytorch_model.bin"
-            )  # Full checkpoint
-            if not os.path.exists(checkpoint_name):
-                checkpoint_name = os.path.join(
-                    resume_from_checkpoint, "adapter_model.bin"
-                )  # only LoRA model - LoRA config above has to fit
-                resume_from_checkpoint = (
-                    False  # So the trainer won't try loading its state
-                )
-            # The two files above have a different name depending on how they were saved, but are actually the same.
-            if os.path.exists(checkpoint_name):
-                logger.info(f"Restarting from {checkpoint_name}")
-                adapters_weights = torch.load(checkpoint_name)
-                self.last_checkpoint = set_peft_model_state_dict(model.get_backend_model(), adapters_weights)
-            else:
-                logger.info(f"Checkpoint {checkpoint_name} not found")
-
         train_dataset = lm_dataset.get_backend_dataset()
 
         if finetuner_args.do_train:
             if data_args.max_train_samples is not None:
                 max_train_samples = min(len(train_dataset), data_args.max_train_samples)
                 train_dataset = train_dataset.select(range(max_train_samples))
+        
+        old_state_dict = model.get_backend_model().state_dict
+        model.get_backend_model().state_dict = (
+            lambda self, *_, **__: get_peft_model_state_dict(
+                self, old_state_dict()
+            )
+        ).__get__(model, type(model))
 
         # Initialize our Trainer
         training_args = finetuner_args
