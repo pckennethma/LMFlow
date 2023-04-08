@@ -22,9 +22,20 @@ with open (ds_config_path, "r") as f:
     
 
 
-# model_name_or_path = "OptimalScale/gpt-neo2.7B-inst-tuning"
-model_name_or_path = 'OptimalScale/gpt-neo2.7B-inst-tuning'
-model_args = ModelArguments(model_name_or_path=model_name_or_path)
+model_name_or_path = "OptimalScale/gpt-neo2.7B-inst-tuning"
+
+# model_name_or_path = 'OptimalScale/gpt-neo2.7B-inst-tuning'
+# model_name_or_path = "decapoda-research/llama-13b-hf"
+# lora_path = "../output_models/llama13b-lora-170k"
+    
+    
+#model_name_or_path = "decapoda-research/llama-7b-hf"
+#lora_path = "../output_models/llama7b-lora-170k"
+    
+try:
+    model_args = ModelArguments(model_name_or_path=model_name_or_path, lora_model_path=lora_path)
+except:
+    model_args = ModelArguments(model_name_or_path=model_name_or_path)
 
 local_rank = int(os.getenv("LOCAL_RANK", "0"))
 world_size = int(os.getenv("WORLD_SIZE", "1"))
@@ -71,8 +82,8 @@ def inference_many(prompt):
         
     prompt = prompt_tmp
     
-    
-    prompt_all = model.tokenizer.batch_encode_plus(tuple(prompt), pad_to_max_length=True)
+    with torch.no_grad():    
+        prompt_all = model.tokenizer.batch_encode_plus(tuple(prompt), pad_to_max_length=True)
     
     prompt_all = torch.tensor(prompt_all['input_ids']).cuda()
     
@@ -80,9 +91,10 @@ def inference_many(prompt):
     outputs = model.inference(prompt_all, max_new_tokens=250,temperature=0.9, do_sample=False)
     text_out_final = []
     for i in range(len(outputs)):
-        text_out = model.decode(outputs[i], skip_special_tokens=True)
+        with torch.no_grad():
+            text_out = model.decode(outputs[i], skip_special_tokens=True)
         
-        prompt_length = len(model.decode(prompt_all[i], skip_special_tokens=True,))
+            prompt_length = len(model.decode(prompt_all[i], skip_special_tokens=True,))
         try:
             text_out = text_out[prompt_length:].strip("\n").split("\n\nDefintion:")[0]
         except:
