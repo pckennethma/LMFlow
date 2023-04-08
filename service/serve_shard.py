@@ -15,7 +15,7 @@ import os, jsonlines, tqdm, sys
 def inference_one(prompt):
     if prompt == "":
         return ""
-    prompt = f"""Input: User{prompt}\n Assistant:"""
+    prompt = f"""Input: User: {prompt}\n Assistant:"""
     inputs = model.encode(prompt, return_tensors="pt").to(device=local_rank)
     outputs = model.inference(inputs, max_new_tokens=250,temperature=0.9, do_sample=False)
     text_out = model.decode(outputs[0], skip_special_tokens=True)
